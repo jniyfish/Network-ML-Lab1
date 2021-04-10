@@ -8,6 +8,9 @@ from sklearn.model_selection import train_test_split
 from sklearn import tree
 from sklearn.preprocessing import LabelEncoder, OneHotEncoder
 from sklearn import metrics
+from sklearn.metrics import confusion_matrix
+from sklearn.model_selection import KFold
+
 
 names = ["duration","protocol_type","service","flag","src_bytes",
     "dst_bytes","land","wrong_fragment","urgent","hot","num_failed_logins",
@@ -22,6 +25,21 @@ names = ["duration","protocol_type","service","flag","src_bytes",
 
 
 df = pd.read_csv('corrected', names=names, low_memory=False)
+
+df['num_outbound_cmds']
+for i in df['num_outbound_cmds']:
+    if i!=0:
+        print("one")
+
+#remove redundant features (this column are all zeros)
+print(df.shape)
+df['num_outbound_cmds'].value_counts()
+df.drop('num_outbound_cmds', axis=1, inplace=True)
+
+#remove duplicates
+df.drop_duplicates(subset=None, keep='first', inplace=True)
+print(df.shape)
+
 df = df.replace("back.", 2)
 df = df.replace("buffer_overflow.",3)
 df = df.replace("ftp_write.",4)
@@ -67,13 +85,67 @@ features = list(df.columns[0:39])
 x = df[features]
 y = df["target"]
 
-x_train, x_test, y_train, y_test = train_test_split(x,y, test_size=0.3, random_state=0)
+xnmp=x.to_numpy()
+xnmp = np.array(xnmp, dtype=np.float64)
+ynmp=y.to_numpy()
+ynmp = np.array(ynmp, dtype=np.float64)
 
-classifier = tree.DecisionTreeClassifier(criterion = 'entropy' , max_depth=10, random_state=0)
-classifier.fit(x_train, y_train)
-tree.plot_tree(classifier)
+kf = KFold(n_splits=3)
+kf.get_n_splits(xnmp)
+time = 0
+for train_index, test_index in kf.split(xnmp):
+    time = time + 1
+    x_train, x_test = xnmp[train_index], xnmp[test_index]
+    y_train, y_test = ynmp[train_index], ynmp[test_index]
+    print("-----Time: "+ str(time) + "  Decision Tree-----")
+    #decision tree
+    classifier = tree.DecisionTreeClassifier(criterion = 'entropy' , max_depth=10, random_state=0)
+    classifier.fit(x_train, y_train)
+    tree.plot_tree(classifier)
+    predict_y = classifier.predict(x_test)
+    accuracy = metrics.accuracy_score(y_test, predict_y)
+    cm = confusion_matrix(y_test, predict_y)
+    print("Accuracy: "+ str(accuracy))
+    recall = cm[1,1]/(cm[0,1]+cm[1,1])  #true positives/ false negatives + true positives
+    print("Recall is : "+ str(recall))
+    precision = cm[1,1]/(cm[1,0]+cm[1,1])  #Precision=true positives/ false positives + true positives
+    print("Precision is: "+ str(precision))
+    f1_score = 2*((precision*recall)/(precision+recall)) #F1 = 2 * (precision * recall) / (precision + recall)
+    print("F1 is: "+ str(f1_score))
 
-predict_y = classifier.predict(x_test)
 
-accuracy = metrics.accuracy_score(y_test, predict_y)
-print(accuracy)
+    #Random Forest
+    from sklearn.ensemble import RandomForestClassifier
+    print("-----Time: "+ str(time) + "  Random Forest-----")
+    rforest = RandomForestClassifier(n_estimators=100, random_state=0)
+    rforest.fit(x_train, y_train)
+    rforest_pred = rforest.predict(x_test)
+    rforestcm = confusion_matrix(y_test, rforest_pred)
+    print("Accuracy: "+ str(metrics.accuracy_score(y_test, rforest_pred)))
+    recall = rforestcm[1,1]/(rforestcm[0,1]+rforestcm[1,1])  #true positives/ false negatives + true positives
+    print("Recall is : "+ str(recall))
+    precision = rforestcm[1,1]/(rforestcm[1,0]+rforestcm[1,1])  #Precision=true positives/ false positives + true positives
+    print("Precision is: "+ str(precision))
+    f1_score = 2*((precision*recall)/(precision+recall)) #F1 = 2 * (precision * recall) / (precision + recall)
+    print("F1 is: "+ str(f1_score))
+
+
+    #knn
+    print("-----Time: "+ str(time) + "  KNN-----")
+    from sklearn.neighbors import KNeighborsClassifier
+    #for i in range (100)
+    #nn = KNeighborsClassifier(n_neighbors= 5)
+    knn = KNeighborsClassifier(n_neighbors= 5)
+    knn.fit(x_train,y_train)
+    knn_pred = knn.predict(x_test)
+    print("Accuracy: "+ str(metrics.accuracy_score(y_test, knn_pred)))
+
+    knncm = confusion_matrix(y_test, knn_pred)
+    print("Accuracy: "+ str(metrics.accuracy_score(y_test, knn_pred)))
+    recall = knncm[1,1]/(knncm[0,1]+knncm[1,1])  #true positives/ false negatives + true positives
+    print("Recall is : "+ str(recall))
+    precision = knncm[1,1]/(knncm[1,0]+knncm[1,1])  #Precision=true positives/ false positives + true positives
+    print("Precision is: "+ str(precision))
+    f1_score = 2*((precision*recall)/(precision+recall)) #F1 = 2 * (precision * recall) / (precision + recall)
+    print("F1 is: "+ str(f1_score))
+
